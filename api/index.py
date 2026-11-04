@@ -1,7 +1,7 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v13.0)
-# AÇIKLAMA: MEB bot kamuflesi, Full HTTP Metot Desteği (GET/POST/OPTIONS),
-#           Gelişmiş Origin/Referer Spoofing, JS/CSS Asset Tüneli ve Oyun Desteği.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v14.0)
+# AÇIKLAMA: MEB bot kamuflesi, 'Accept-Encoding: identity' ile karakter bozulması
+#           (gzip) çözümü, Full HTTP Metot Desteği ve Tam Donanımlı Oyun Tüneli.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
@@ -214,7 +214,7 @@ def index():
 
 
 # ==============================================================================
-# BÖLÜM 4: FULL METOTLU (GET, POST, OPTIONS) PROXY MOTORU
+# BÖLÜM 4: KARAKTER BOZULMASINI (GZIP) ÖNLEYEN PROXY MOTORU
 # ==============================================================================
 @app.route('/proxy', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def proxy():
@@ -239,14 +239,16 @@ def proxy():
     parsed_target = urlparse(target_url)
     target_origin = f"{parsed_target.scheme}://{parsed_target.netloc}"
 
+    # KRİTİK ÇÖZÜM: 'Accept-Encoding': 'identity' ile sitenin veriyi sıkıştırmasını (gzip) engelliyoruz
     req_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept-Encoding': 'identity',
         'Referer': target_origin + '/',
         'Origin': target_origin
     }
     
     for h_key, h_val in request.headers:
-        if h_key.lower() not in ['host', 'content-length', 'connection']:
+        if h_key.lower() not in ['host', 'content-length', 'connection', 'accept-encoding']:
             req_headers[h_key] = h_val
 
     request_data = request.get_data() if request.method in ['POST', 'PUT', 'PATCH'] else None
