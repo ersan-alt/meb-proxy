@@ -5,11 +5,12 @@ import re
 
 app = Flask(__name__)
 
+# --- INJECTED CLIENT-SIDE DEFENSE & PROXY HOOKS ---
 INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 999999; font-family: Arial, sans-serif; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-bottom: 2px solid #38bdf8;">
-    <span style="font-weight: bold; font-size: 14px; color: #38bdf8;">🛡️ MEB Üniversal Oyun Koruma v4</span>
+    <span style="font-weight: bold; font-size: 14px; color: #38bdf8;">🛡️ MEB Üniversal Ultra Koruma v5</span>
     <form action="/proxy" method="get" style="display: flex; gap: 8px; margin: 0; flex-grow: 1; max-width: 650px; margin-left: 20px; margin-right: 20px;">
-        <input type="text" name="url" placeholder="Oyun veya site adresi yazın (örn: tr.y8.com)..." style="flex-grow: 1; padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 13px;" required>
+        <input type="text" name="url" placeholder="Oyun, film veya site adresi yazın (örn: tr.y8.com)..." style="flex-grow: 1; padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 13px;" required>
         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 7px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">Git</button>
     </form>
     <a href="/" style="color: #f87171; text-decoration: none; font-size: 13px; font-weight: bold; background: rgba(248,113,113,0.1); padding: 5px 10px; border-radius: 4px;">Ana Sayfa</a>
@@ -17,7 +18,7 @@ INJECTED_HEAD = '''
 <div style="height: 50px;"></div>
 
 <script>
-// 1. Tüm Domain, Iframe ve Embed kilitlerini kaldıran evrensel kalkan
+// 1. Domain, Iframe ve Embed kilitlerini kaldıran evrensel kalkan
 try {
     Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
@@ -34,7 +35,7 @@ try {
     }
 } catch(e) {}
 
-// 2. Unity WebGL ve ağır oyunların arka plandaki tüm Fetch & XHR isteklerini yakalayan süper motor
+// 2. Unity WebGL ve ağır oyunların arka plandaki tüm Fetch & XHR isteklerini yakalayan motor
 (function() {
     const originalFetch = window.fetch;
     window.fetch = function(input, init) {
@@ -83,6 +84,7 @@ document.addEventListener('click', function(e) {
 </script>
 '''
 
+# --- HOME ROUTE ---
 @app.route('/')
 def index():
     return '''
@@ -90,7 +92,7 @@ def index():
     <html lang="tr">
     <head>
         <meta charset="UTF-8">
-        <title>MEB Tam Korumalı Erişim Geçidi</title>
+        <title>MEB Üniversal Tam Korumalı Erişim Geçidi</title>
         <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #090d16; color: #f1f5f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
             .card { background: #111827; padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 100%; max-width: 480px; text-align: center; border: 1px solid #1f2937; }
@@ -105,9 +107,9 @@ def index():
     </head>
     <body>
         <div class="card">
-            <div class="badge">🚀 Üniversal Oyun Altyapısı Aktif</div>
+            <div class="badge">🚀 Üniversal Oyun & Web Koruması Aktif</div>
             <h2>Erişim Geçidi</h2>
-            <p>Y8, CrazyGames ve tüm oyunlar için adresi yazın.</p>
+            <p>Y8, CrazyGames ve tüm engelsiz siteler için adresi yazın.</p>
             <form action="/proxy" method="get">
                 <input type="text" name="url" placeholder="https://tr.y8.com" required>
                 <button type="submit">Bağlan</button>
@@ -117,6 +119,7 @@ def index():
     </html>
     '''
 
+# --- PROXY ENGINE ROUTE ---
 @app.route('/proxy')
 def proxy():
     target_url = request.args.get('url')
@@ -140,16 +143,16 @@ def proxy():
             
             content_type = resp_headers.get('Content-Type', '').lower()
 
-            # Güvenlik ve çakışma yaratan başlıkları temizle
+            # Güvenlik ve çakışma yaratan başlıkları filtrele
             excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'content-security-policy', 'connection', 'x-frame-options']
             headers_list = [(name, value) for name, value in resp_headers.items() if name.lower() not in excluded_headers]
             
-            # Tarayıcı CORS engellerini tamamen kaldıran esnek izin başlıkları ekle (Oyun assetleri için şart)
+            # CORS engellerini aşmak için esnek izinler ekle (Oyun assetleri ve .wasm/.data dosyaları için kritik)
             headers_list.append(('Access-Control-Allow-Origin', '*'))
             headers_list.append(('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE'))
             headers_list.append(('Access-Control-Allow-Headers', '*'))
 
-            # Sadece HTML dosyaları için URL rewriting ve script enjeksiyonu yap
+            # Sadece HTML içeriklerinde linkleri yeniden yaz ve koruma scripti enjekte et
             if 'text/html' in content_type:
                 try:
                     html = body.decode('utf-8', errors='ignore')
@@ -183,7 +186,7 @@ def proxy():
 
                 return Response(modified_html, status_code, headers_list)
             
-            # .wasm, .data, resim, ses ve diğer ikili oyun dosyaları doğrudan hatasız döner
+            # Oyunlar için kritik olan .wasm, .data, ses ve resim dosyalarını ham bayt olarak döndür
             return Response(body, status_code, headers_list)
             
     except Exception as e:
