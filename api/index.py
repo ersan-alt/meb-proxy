@@ -1,7 +1,7 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v14.0)
-# AÇIKLAMA: MEB bot kamuflesi, 'Accept-Encoding: identity' ile karakter bozulması
-#           (gzip) çözümü, Full HTTP Metot Desteği ve Tam Donanımlı Oyun Tüneli.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v15.0)
+# AÇIKLAMA: MEB bot kamuflesi, JS kod koruması (Regex arıtması), Gzip önleme
+#           ('Accept-Encoding: identity'), Full HTTP Metot ve Tam Oyun Desteği.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
@@ -214,7 +214,7 @@ def index():
 
 
 # ==============================================================================
-# BÖLÜM 4: KARAKTER BOZULMASINI (GZIP) ÖNLEYEN PROXY MOTORU
+# BÖLÜM 4: JS DOSYALARINI KORUYAN VE OYUNLARI AÇAN PROXY MOTORU
 # ==============================================================================
 @app.route('/proxy', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def proxy():
@@ -239,7 +239,6 @@ def proxy():
     parsed_target = urlparse(target_url)
     target_origin = f"{parsed_target.scheme}://{parsed_target.netloc}"
 
-    # KRİTİK ÇÖZÜM: 'Accept-Encoding': 'identity' ile sitenin veriyi sıkıştırmasını (gzip) engelliyoruz
     req_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept-Encoding': 'identity',
@@ -269,7 +268,8 @@ def proxy():
             headers_list.append(('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE'))
             headers_list.append(('Access-Control-Allow-Headers', '*'))
 
-            if 'text/html' in content_type or 'text/css' in content_type or 'javascript' in content_type:
+            # KRİTİK: Sadece text/html ve text/css işlenir. JavaScript dosyaları (.js) ASLA regex ile bozulmaz!
+            if 'text/html' in content_type or 'text/css' in content_type:
                 try:
                     content_str = body.decode('utf-8', errors='ignore')
                 except:
@@ -316,6 +316,7 @@ def proxy():
 
                 return Response(modified_content, status_code, headers_list)
             
+            # JavaScript, .wasm, .data, resimler ve binary dosyalar bozulmadan doğrudan iletilir
             return Response(body, status_code, headers_list)
             
     except Exception as e:
