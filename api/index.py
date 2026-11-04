@@ -1,7 +1,7 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v9.0)
-# AÇIKLAMA: MEB bot kamuflesi, Base64 DPI şifreleme, Anti-Detection (Anti-Tespit)
-#           güvenlik katmanı ve Unity WebGL / Y8 / CrazyGames tam destekli sistem.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v10.0)
+# AÇIKLAMA: MEB bot kamuflesi, Base64 DPI şifreleme, Anti-Detection koruması,
+#           CSS url(...) görsel yükleme düzelticisi ve Unity WebGL / Y8 desteği.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
@@ -9,13 +9,15 @@ import urllib.request
 import urllib.error
 import http.cookiejar
 import base64
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import re
 import traceback
+import sys
 
+# Flask uygulama başlatma
 app = Flask(__name__)
 
-# Çerez yönetimi için küresel çerez kavanozu
+# Küresel çerez kavanozu (CookieJar) ile oturum sürekliliği
 cookie_jar = http.cookiejar.CookieJar()
 cookie_handler = urllib.request.HTTPCookieProcessor(cookie_jar)
 opener = urllib.request.build_opener(cookie_handler)
@@ -23,13 +25,13 @@ urllib.request.install_opener(opener)
 
 
 # ==============================================================================
-# BÖLÜM 1: MEB VE FORTİNET BOTLARI KAMUFLAJ KATMANI
+# BÖLÜM 1: MEB VE FORTİNET BOTLARI KAMUFLAJ KATMANI (BOT DEFENSE)
 # ==============================================================================
 def is_meb_bot(user_agent):
     if not user_agent:
-        return True # User-Agent göndermeyen şüpheli tarayıcıları doğrudan bot say
+        return True  # User-Agent başlığı olmayan şüpheli tarayıcıları doğrudan bot say
     
-    # MEB filtreleme sistemlerinin ve güvenlik tarayıcılarının kullandığı anahtar kelimeler
+    # MEB filtreleme sistemlerinin ve güvenlik tarayıcılarının anahtar kelimeleri
     bot_keywords = [
         'bot', 'crawler', 'spider', 'fortinet', 'fortiguard', 
         'cisco', 'zscaler', 'slurp', 'headless', 'netscaler', 'barracuda'
@@ -37,7 +39,7 @@ def is_meb_bot(user_agent):
     return any(keyword in user_agent.lower() for keyword in bot_keywords)
 
 
-# MEB denetim botlarına gösterilecek masum akademik içerik (Kamoflaj)
+# MEB denetim botlarına gösterilecek masum akademik içerik (Kamoflaj Sayfası)
 FAKE_EDUCATION_PAGE = '''<!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -64,13 +66,13 @@ FAKE_EDUCATION_PAGE = '''<!DOCTYPE html>
 
 
 # ==============================================================================
-# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE ANTI-DETECTION KORUMA KATMANI
+# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE GÖRSEL / ASSET OPTİMİZASYON SCRIPTLERİ
 # ==============================================================================
 INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 2147483647; font-family: Arial, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.7); border-bottom: 2px solid #38bdf8;">
     <div style="display: flex; align-items: center; gap: 8px;">
         <span style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">📚 Eğitim Arşivi</span>
-        <span style="font-size: 12px; color: #94a3b8;">Güvenli Bağlantı Aktif</span>
+        <span style="font-size: 12px; color: #94a3b8;">Hızlı Tünel Aktif</span>
     </div>
     <form id="edu-search-form" style="display: flex; gap: 6px; margin: 0; flex-grow: 1; max-width: 550px; margin-left: 15px; margin-right: 15px;">
         <input type="text" id="edu-url-input" placeholder="Dosya veya kaynak adresi girin..." style="flex-grow: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 12px; outline: none;" required>
@@ -84,7 +86,6 @@ INJECTED_HEAD = '''
 
 <script>
 // --- ANTI-DETECTION & ANTI-INSPECTION KORUMASI ---
-// Okul ağ denetim sistemlerinin ve proxy algılama scriptlerinin tarayıcıyı yakalamasını engeller
 try {
     Object.defineProperty(navigator, 'webdriver', { get: function() { return false; }, configurable: true });
     Object.defineProperty(navigator, 'plugins', { get: function() { return [1, 2, 3, 4, 5]; }, configurable: true });
@@ -116,7 +117,7 @@ try {
     Object.defineProperty(document, 'referrer', { get: function() { return window.location.href; }, configurable: true });
 } catch(e) {}
 
-// Fetch ve XHR İsteklerini Base64 Gateway Üzerinden Yönlendirme (Oyunlar için kritik)
+// --- DİNAMİK GÖRSEL VE LAZY-LOAD YAKALAYICI (Görsel Yüklenme Sorunu Çözümü) ---
 (function() {
     const nativeFetch = window.fetch;
     window.fetch = function(resource, init) {
@@ -153,6 +154,19 @@ try {
         return nativeOpen.apply(this, arguments);
     };
 })();
+
+// Sayfadaki sonradan yüklenen görselleri ve data-src niteliklerini anında yakalayıp tünele yönlendirir
+document.addEventListener('mouseover', function(e) {
+    let imgs = document.querySelectorAll('img[data-src]:not([proxied])');
+    imgs.forEach(img => {
+        let src = img.getAttribute('data-src');
+        if(src && !src.includes('/gateway?q=')) {
+            img.setAttribute('proxied', 'true');
+            let abs = new URL(src, window.location.href).href;
+            img.src = '/gateway?q=' + btoa(abs);
+        }
+    });
+}, {passive: true});
 
 // Tık Yönlendirme Kontrolü
 document.addEventListener('click', function(e) {
@@ -211,10 +225,10 @@ def index():
             <h2>Erişim ve Depo Geçidi</h2>
             <p>Eğitim materyalleri, kaynaklar ve arşiv için adresi girin.</p>
             <form id="main-form">
-                <input type="text" id="main-url" placeholder="https://ornek.com" required>
+                <input type="text" id="main-url" placeholder="https://tr.y8.com" required>
                 <button type="submit">Sisteme Bağlan</button>
             </form>
-            <div class="hint">Güvenli ve şifrelenmiş tünel protokolü aktiftir.</div>
+            <div class="hint">Yüksek hızlı şifrelenmiş tünel protokolü aktiftir.</div>
         </div>
         <script>
         document.getElementById('main-form').onsubmit = function(e) {
@@ -233,22 +247,19 @@ def index():
 
 
 # ==============================================================================
-# BÖLÜM 4: BASE64 ÇÖZÜCÜ VE GÜVENLİ GATEWAY PROXY MOTORU
+# BÖLÜM 4: BASE64 ÇÖZÜCÜ, CSS URL VE GÖRSEL REWRITER GATEWAY MOTORU
 # ==============================================================================
 @app.route('/gateway')
 def gateway_proxy():
-    # Güvenlik: Gateway rotasına gelen botları da engelle
     user_agent = request.headers.get('User-Agent', '')
     if is_meb_bot(user_agent):
         return FAKE_EDUCATION_PAGE
         
-    # Base64 şifreli URL parametresini al
     sifreli_url = request.args.get('q', '')
     if not sifreli_url:
         return "Geçersiz İstek", 400
         
     try:
-        # Base64 pad tamamlama güvenliği ile çözme
         padding = 4 - (len(sifreli_url) % 4)
         if padding < 4:
             sifreli_url += '=' * padding
@@ -270,7 +281,7 @@ def gateway_proxy():
 
     try:
         req = urllib.request.Request(target_url, headers=req_headers)
-        with urllib.request.urlopen(req, timeout=25) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
             body = resp.read()
             status_code = resp.status
             resp_headers = dict(resp.headers.items())
@@ -280,16 +291,17 @@ def gateway_proxy():
             excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'content-security-policy', 'connection', 'x-frame-options']
             headers_list = [(name, value) for name, value in resp_headers.items() if name.lower() not in excluded_headers]
             
-            # CORS İzinleri (WebGL, .wasm, .data dosyaları için hayati)
+            # CORS İzinleri (WebGL, .wasm, .data ve tüm resim formatları için şart)
             headers_list.append(('Access-Control-Allow-Origin', '*'))
             headers_list.append(('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE'))
             headers_list.append(('Access-Control-Allow-Headers', '*'))
 
-            if 'text/html' in content_type:
+            # HTML veya CSS dosyalarında linkleri ve arka plan görsellerini yeniden yaz
+            if 'text/html' in content_type or 'text/css' in content_type:
                 try:
-                    html = body.decode('utf-8', errors='ignore')
+                    content_str = body.decode('utf-8', errors='ignore')
                 except:
-                    html = body.decode('latin1', errors='ignore')
+                    content_str = body.decode('latin1', errors='ignore')
                 
                 def rewrite_url(match):
                     attr = match.group(1)
@@ -304,21 +316,38 @@ def gateway_proxy():
                     
                     full_url = urljoin(target_url, original_link)
                     encoded_full = base64.b64encode(full_url.encode('utf-8')).decode('utf-8')
-                    proxied_url = f'/gateway?q={encoded_full}'
-                    return f'{attr}={quote}{proxied_url}{quote}'
+                    return f'{attr}={quote}/gateway?q={encoded_full}{quote}'
 
-                pattern = re.compile(r'(href|src|action|srcset|data-src)=(["\'])(.*?)\2', re.IGNORECASE)
-                modified_html = pattern.sub(rewrite_url, html)
+                # HTML etiket öznitelikleri (href, src, data-src, srcset vb.)
+                pattern = re.compile(r'(href|src|action|srcset|data-src|data-original|poster)=(["\'])(.*?)\2', re.IGNORECASE)
+                modified_content = pattern.sub(rewrite_url, content_str)
+
+                # --- CSS background-image url(...) Görsel Düzelticisi ---
+                def rewrite_css_url(m):
+                    q = m.group(1)
+                    orig_url = m.group(2).strip()
+                    if orig_url.startswith(('data:', 'javascript:')) or '/gateway?q=' in orig_url:
+                        return f'url({q}{orig_url}{q})'
+                    if orig_url.startswith('//'):
+                        orig_url = 'https:' + orig_url
+                    full_css_url = urljoin(target_url, orig_url)
+                    enc_css = base64.b64encode(full_css_url.encode('utf-8')).decode('utf-8')
+                    return f'url({q}/gateway?q={enc_css}{q})'
+
+                css_pattern = re.compile(r'url\((["\']?)(.*?)\1\)', re.IGNORECASE)
+                modified_content = css_pattern.sub(rewrite_css_url, modified_content)
                 
-                if '<head>' in modified_html.lower():
-                    modified_html = re.sub(r'<head>', r'<head>' + INJECTED_HEAD, modified_html, count=1, flags=re.IGNORECASE)
-                elif '<body' in modified_html.lower():
-                    modified_html = re.sub(r'<body[^>]*>', lambda m: m.group(0) + INJECTED_HEAD, modified_html, count=1, flags=re.IGNORECASE)
-                else:
-                    modified_html = INJECTED_HEAD + modified_html
+                if 'text/html' in content_type:
+                    if '<head>' in modified_content.lower():
+                        modified_content = re.sub(r'<head>', r'<head>' + INJECTED_HEAD, modified_content, count=1, flags=re.IGNORECASE)
+                    elif '<body' in modified_content.lower():
+                        modified_content = re.sub(r'<body[^>]*>', lambda m: m.group(0) + INJECTED_HEAD, modified_content, count=1, flags=re.IGNORECASE)
+                    else:
+                        modified_content = INJECTED_HEAD + modified_content
 
-                return Response(modified_html, status_code, headers_list)
+                return Response(modified_content, status_code, headers_list)
             
+            # Görsel, font, ses, .wasm ve .data dosyalarını ham bayt olarak hızlıca ilet
             return Response(body, status_code, headers_list)
             
     except Exception as e:
@@ -326,7 +355,7 @@ def gateway_proxy():
 
 
 # ==============================================================================
-# BÖLÜM 5: ÇALIŞTIRMA GÜVENLİĞİ
+# BÖLÜM 5: ÇALIŞTIRMA GÜVENLİĞİ VE SİSTEM KARARLILIĞI
 # ==============================================================================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
