@@ -1,20 +1,18 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v10.0)
-# AÇIKLAMA: MEB bot kamuflesi, Base64 DPI şifreleme, Anti-Detection koruması,
-#           CSS url(...) görsel yükleme düzelticisi ve Unity WebGL / Y8 desteği.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v11.0)
+# AÇIKLAMA: MEB bot kamuflesi, kararlı /proxy?url= görsel/asset yönlendirmesi,
+#           Anti-Detection koruması, CSS url(...) ve Unity WebGL tam desteği.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
 import urllib.request
 import urllib.error
 import http.cookiejar
-import base64
 from urllib.parse import urljoin, urlparse
 import re
 import traceback
 import sys
 
-# Flask uygulama başlatma
 app = Flask(__name__)
 
 # Küresel çerez kavanozu (CookieJar) ile oturum sürekliliği
@@ -31,7 +29,6 @@ def is_meb_bot(user_agent):
     if not user_agent:
         return True  # User-Agent başlığı olmayan şüpheli tarayıcıları doğrudan bot say
     
-    # MEB filtreleme sistemlerinin ve güvenlik tarayıcılarının anahtar kelimeleri
     bot_keywords = [
         'bot', 'crawler', 'spider', 'fortinet', 'fortiguard', 
         'cisco', 'zscaler', 'slurp', 'headless', 'netscaler', 'barracuda'
@@ -66,7 +63,7 @@ FAKE_EDUCATION_PAGE = '''<!DOCTYPE html>
 
 
 # ==============================================================================
-# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE GÖRSEL / ASSET OPTİMİZASYON SCRIPTLERİ
+# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE ASSET YAKALAYICI SCRIPTLER
 # ==============================================================================
 INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 2147483647; font-family: Arial, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.7); border-bottom: 2px solid #38bdf8;">
@@ -74,8 +71,8 @@ INJECTED_HEAD = '''
         <span style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">📚 Eğitim Arşivi</span>
         <span style="font-size: 12px; color: #94a3b8;">Hızlı Tünel Aktif</span>
     </div>
-    <form id="edu-search-form" style="display: flex; gap: 6px; margin: 0; flex-grow: 1; max-width: 550px; margin-left: 15px; margin-right: 15px;">
-        <input type="text" id="edu-url-input" placeholder="Dosya veya kaynak adresi girin..." style="flex-grow: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 12px; outline: none;" required>
+    <form action="/proxy" method="get" style="display: flex; gap: 6px; margin: 0; flex-grow: 1; max-width: 550px; margin-left: 15px; margin-right: 15px;">
+        <input type="text" name="url" placeholder="Dosya veya kaynak adresi girin..." style="flex-grow: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 12px; outline: none;" required>
         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Getir</button>
     </form>
     <div>
@@ -85,29 +82,12 @@ INJECTED_HEAD = '''
 <div style="height: 45px;"></div>
 
 <script>
-// --- ANTI-DETECTION & ANTI-INSPECTION KORUMASI ---
+// --- ANTI-DETECTION KORUMASI ---
 try {
     Object.defineProperty(navigator, 'webdriver', { get: function() { return false; }, configurable: true });
     Object.defineProperty(navigator, 'plugins', { get: function() { return [1, 2, 3, 4, 5]; }, configurable: true });
     window.console.error = window.console.error || function() {};
 } catch(e) {}
-
-// Base64 URL Şifreleme ile DPI Korumalı Form Gönderimi
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('edu-search-form');
-    if(form) {
-        form.onsubmit = function(e) {
-            e.preventDefault();
-            let val = document.getElementById('edu-url-input').value.trim();
-            if(!val) return;
-            if(!val.startsWith('http://') && !val.startsWith('https://')) {
-                val = 'https://' + val;
-            }
-            let encoded = btoa(val);
-            window.location.href = '/gateway?q=' + encoded;
-        };
-    }
-});
 
 // Domain ve Iframe Kalkanı
 try {
@@ -117,7 +97,7 @@ try {
     Object.defineProperty(document, 'referrer', { get: function() { return window.location.href; }, configurable: true });
 } catch(e) {}
 
-// --- DİNAMİK GÖRSEL VE LAZY-LOAD YAKALAYICI (Görsel Yüklenme Sorunu Çözümü) ---
+// --- DİNAMİK FETCH & XHR PROXY MOTORU ---
 (function() {
     const nativeFetch = window.fetch;
     window.fetch = function(resource, init) {
@@ -125,12 +105,11 @@ try {
         if (resource instanceof Request) {
             reqUrl = resource.url;
         }
-        if (typeof reqUrl === 'string' && !reqUrl.startsWith('data:') && !reqUrl.includes('/gateway?q=')) {
+        if (typeof reqUrl === 'string' && !reqUrl.startsWith('data:') && !reqUrl.includes('/proxy?url=')) {
             if (reqUrl.startsWith('//')) reqUrl = 'https:' + reqUrl;
             try {
                 let absoluteTarget = new URL(reqUrl, window.location.href).href;
-                let encoded = btoa(absoluteTarget);
-                let proxiedTarget = '/gateway?q=' + encoded;
+                let proxiedTarget = '/proxy?url=' + encodeURIComponent(absoluteTarget);
                 if (resource instanceof Request) {
                     resource = new Request(proxiedTarget, init);
                 } else {
@@ -143,30 +122,16 @@ try {
 
     const nativeOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(method, url) {
-        if (typeof url === 'string' && !url.startsWith('data:') && !url.includes('/gateway?q=')) {
+        if (typeof url === 'string' && !url.startsWith('data:') && !url.includes('/proxy?url=')) {
             if (url.startsWith('//')) url = 'https:' + url;
             try {
                 let absoluteTarget = new URL(url, window.location.href).href;
-                let encoded = btoa(absoluteTarget);
-                arguments[1] = '/gateway?q=' + encoded;
+                arguments[1] = '/proxy?url=' + encodeURIComponent(absoluteTarget);
             } catch(e) {}
         }
         return nativeOpen.apply(this, arguments);
     };
 })();
-
-// Sayfadaki sonradan yüklenen görselleri ve data-src niteliklerini anında yakalayıp tünele yönlendirir
-document.addEventListener('mouseover', function(e) {
-    let imgs = document.querySelectorAll('img[data-src]:not([proxied])');
-    imgs.forEach(img => {
-        let src = img.getAttribute('data-src');
-        if(src && !src.includes('/gateway?q=')) {
-            img.setAttribute('proxied', 'true');
-            let abs = new URL(src, window.location.href).href;
-            img.src = '/gateway?q=' + btoa(abs);
-        }
-    });
-}, {passive: true});
 
 // Tık Yönlendirme Kontrolü
 document.addEventListener('click', function(e) {
@@ -174,12 +139,11 @@ document.addEventListener('click', function(e) {
     if (targetLink && targetLink.href) {
         let hrefVal = targetLink.getAttribute('href');
         if (hrefVal && !hrefVal.startsWith('javascript:') && !hrefVal.startsWith('#') && !hrefVal.startsWith('mailto:') && !hrefVal.startsWith('tel:')) {
-            if (!hrefVal.includes('/gateway?q=')) {
+            if (!hrefVal.includes('/proxy?url=')) {
                 e.preventDefault();
                 try {
                     let fullDest = new URL(hrefVal, window.location.href).href;
-                    let encoded = btoa(fullDest);
-                    window.location.href = '/gateway?q=' + encoded;
+                    window.location.href = '/proxy?url=' + encodeURIComponent(fullDest);
                 } catch(e) {
                     window.location.href = hrefVal;
                 }
@@ -224,49 +188,30 @@ def index():
             <div class="badge">📖 Akademik Arşiv ve Dosya Yönetimi</div>
             <h2>Erişim ve Depo Geçidi</h2>
             <p>Eğitim materyalleri, kaynaklar ve arşiv için adresi girin.</p>
-            <form id="main-form">
-                <input type="text" id="main-url" placeholder="https://tr.y8.com" required>
+            <form action="/proxy" method="get">
+                <input type="text" name="url" placeholder="https://tr.y8.com" required>
                 <button type="submit">Sisteme Bağlan</button>
             </form>
             <div class="hint">Yüksek hızlı şifrelenmiş tünel protokolü aktiftir.</div>
         </div>
-        <script>
-        document.getElementById('main-form').onsubmit = function(e) {
-            e.preventDefault();
-            let val = document.getElementById('main-url').value.trim();
-            if(!val.startsWith('http://') && !val.startsWith('https://')) {
-                val = 'https://' + val;
-            }
-            let encoded = btoa(val);
-            window.location.href = '/gateway?q=' + encoded;
-        };
-        </script>
     </body>
     </html>
     '''
 
 
 # ==============================================================================
-# BÖLÜM 4: BASE64 ÇÖZÜCÜ, CSS URL VE GÖRSEL REWRITER GATEWAY MOTORU
+# BÖLÜM 4: PROXY MOTORU VE GÖRSEL / ASSET YÖNLENDİRİCİ
 # ==============================================================================
-@app.route('/gateway')
-def gateway_proxy():
+@app.route('/proxy')
+def proxy():
     user_agent = request.headers.get('User-Agent', '')
     if is_meb_bot(user_agent):
         return FAKE_EDUCATION_PAGE
         
-    sifreli_url = request.args.get('q', '')
-    if not sifreli_url:
-        return "Geçersiz İstek", 400
-        
-    try:
-        padding = 4 - (len(sifreli_url) % 4)
-        if padding < 4:
-            sifreli_url += '=' * padding
-        target_url = base64.b64decode(sifreli_url).decode('utf-8')
-    except Exception:
-        return "Çözümleme Hatası", 400
-        
+    target_url = request.args.get('url')
+    if not target_url:
+        return "URL belirtilmedi.", 400
+    
     if not target_url.startswith('http://') and not target_url.startswith('https://'):
         target_url = 'https://' + target_url
 
@@ -281,7 +226,7 @@ def gateway_proxy():
 
     try:
         req = urllib.request.Request(target_url, headers=req_headers)
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.urlopen(req, timeout=25) as resp:
             body = resp.read()
             status_code = resp.status
             resp_headers = dict(resp.headers.items())
@@ -296,7 +241,7 @@ def gateway_proxy():
             headers_list.append(('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE'))
             headers_list.append(('Access-Control-Allow-Headers', '*'))
 
-            # HTML veya CSS dosyalarında linkleri ve arka plan görsellerini yeniden yaz
+            # HTML veya CSS dosyalarında linkleri ve görsel yollarını yeniden yaz
             if 'text/html' in content_type or 'text/css' in content_type:
                 try:
                     content_str = body.decode('utf-8', errors='ignore')
@@ -315,24 +260,23 @@ def gateway_proxy():
                         original_link = 'https:' + original_link
                     
                     full_url = urljoin(target_url, original_link)
-                    encoded_full = base64.b64encode(full_url.encode('utf-8')).decode('utf-8')
-                    return f'{attr}={quote}/gateway?q={encoded_full}{quote}'
+                    proxied_url = f'/proxy?url={full_url}'
+                    return f'{attr}={quote}{proxied_url}{quote}'
 
-                # HTML etiket öznitelikleri (href, src, data-src, srcset vb.)
+                # HTML etiketleri (href, src, data-src, srcset, poster vb.)
                 pattern = re.compile(r'(href|src|action|srcset|data-src|data-original|poster)=(["\'])(.*?)\2', re.IGNORECASE)
                 modified_content = pattern.sub(rewrite_url, content_str)
 
-                # --- CSS background-image url(...) Görsel Düzelticisi ---
+                # CSS background-image url(...) görsel yollarını düzeltme
                 def rewrite_css_url(m):
                     q = m.group(1)
                     orig_url = m.group(2).strip()
-                    if orig_url.startswith(('data:', 'javascript:')) or '/gateway?q=' in orig_url:
+                    if orig_url.startswith(('data:', 'javascript:')) or '/proxy?url=' in orig_url:
                         return f'url({q}{orig_url}{q})'
                     if orig_url.startswith('//'):
                         orig_url = 'https:' + orig_url
                     full_css_url = urljoin(target_url, orig_url)
-                    enc_css = base64.b64encode(full_css_url.encode('utf-8')).decode('utf-8')
-                    return f'url({q}/gateway?q={enc_css}{q})'
+                    return f'url({q}/proxy?url={full_css_url}{q})'
 
                 css_pattern = re.compile(r'url\((["\']?)(.*?)\1\)', re.IGNORECASE)
                 modified_content = css_pattern.sub(rewrite_css_url, modified_content)
@@ -347,7 +291,7 @@ def gateway_proxy():
 
                 return Response(modified_content, status_code, headers_list)
             
-            # Görsel, font, ses, .wasm ve .data dosyalarını ham bayt olarak hızlıca ilet
+            # Resimler, fontlar, sesler ve oyun binary dosyaları (.wasm, .data) ham bayt olarak hızlıca iletilir
             return Response(body, status_code, headers_list)
             
     except Exception as e:
