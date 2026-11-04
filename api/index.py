@@ -1,7 +1,7 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v15.0)
-# AÇIKLAMA: MEB bot kamuflesi, JS kod koruması (Regex arıtması), Gzip önleme
-#           ('Accept-Encoding: identity'), Full HTTP Metot ve Tam Oyun Desteği.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v16.0)
+# AÇIKLAMA: Cloudflare/Bot Bypass Başlıkları, Dinamik IFrame/CDN Proxy Kalkanı,
+#           Tam HTTP Metot Desteği (GET/POST) ve Kusursuz Oyun & Görsel Motoru.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
@@ -72,7 +72,7 @@ INJECTED_HEAD = '''
         <span style="font-size: 12px; color: #94a3b8;">Üniversal Oyun Tüneli Aktif</span>
     </div>
     <form action="/proxy" method="get" style="display: flex; gap: 6px; margin: 0; flex-grow: 1; max-width: 550px; margin-left: 15px; margin-right: 15px;">
-        <input type="text" name="url" placeholder="Oyun veya kaynak adresi girin (örn: tr.y8.com)..." style="flex-grow: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 12px; outline: none;" required>
+        <input type="text" name="url" placeholder="CrazyGames, Y8 veya site adresi yazın..." style="flex-grow: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 12px; outline: none;" required>
         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Getir</button>
     </form>
     <div>
@@ -97,7 +97,7 @@ try {
     Object.defineProperty(document, 'referrer', { get: function() { return window.location.href; }, configurable: true });
 } catch(e) {}
 
-// --- DİNAMİK IFRAME VE OYUN MOTORU YAKALAYICI ---
+// --- DİNAMİK IFRAME VE OYUN ÇERÇEVESİ YAKALAYICI MOTORU ---
 (function() {
     const originalSetAttribute = Element.prototype.setAttribute;
     Element.prototype.setAttribute = function(name, value) {
@@ -201,12 +201,12 @@ def index():
         <div class="card">
             <div class="badge">📖 Akademik Arşiv ve Dosya Yönetimi</div>
             <h2>Erişim ve Depo Geçidi</h2>
-            <p>Eğitim materyalleri, kaynaklar ve arşiv için adresi girin.</p>
+            <p>Eğitim materyalleri, kaynaklar ve oyunlar için adresi girin.</p>
             <form action="/proxy" method="get">
-                <input type="text" name="url" placeholder="https://tr.y8.com" required>
+                <input type="text" name="url" placeholder="https://www.crazygames.com" required>
                 <button type="submit">Sisteme Bağlan</button>
             </form>
-            <div class="hint">Yüksek hızlı şifrelenmiş tünel protokolü aktiftir.</div>
+            <div class="hint">Yüksek hızlı ve korumalı tünel protokolü aktiftir.</div>
         </div>
     </body>
     </html>
@@ -214,7 +214,7 @@ def index():
 
 
 # ==============================================================================
-# BÖLÜM 4: JS DOSYALARINI KORUYAN VE OYUNLARI AÇAN PROXY MOTORU
+# BÖLÜM 4: CLOUDFLARE BYPASS VE GERÇEKÇİ TARAYICI BAŞLIKLI PROXY MOTORU
 # ==============================================================================
 @app.route('/proxy', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def proxy():
@@ -239,9 +239,20 @@ def proxy():
     parsed_target = urlparse(target_url)
     target_origin = f"{parsed_target.scheme}://{parsed_target.netloc}"
 
+    # GELİŞMİŞ TARAYICI VE CLOUDFLARE BYPASS BAŞLIKLARI
     req_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
         'Accept-Encoding': 'identity',
+        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'cross-site',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
         'Referer': target_origin + '/',
         'Origin': target_origin
     }
@@ -268,7 +279,6 @@ def proxy():
             headers_list.append(('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE'))
             headers_list.append(('Access-Control-Allow-Headers', '*'))
 
-            # KRİTİK: Sadece text/html ve text/css işlenir. JavaScript dosyaları (.js) ASLA regex ile bozulmaz!
             if 'text/html' in content_type or 'text/css' in content_type:
                 try:
                     content_str = body.decode('utf-8', errors='ignore')
@@ -316,11 +326,11 @@ def proxy():
 
                 return Response(modified_content, status_code, headers_list)
             
-            # JavaScript, .wasm, .data, resimler ve binary dosyalar bozulmadan doğrudan iletilir
+            # Görsel, font, ses, .wasm ve oyun dosyalarını ham bayt olarak ilet
             return Response(body, status_code, headers_list)
             
     except Exception as e:
-        return f"Ağ geçidi bağlantı hatası: {str(e)}", 500
+        return f"Ağ geçidi bağlantı hatası veya koruma engeli: {str(e)}", 500
 
 
 # ==============================================================================
