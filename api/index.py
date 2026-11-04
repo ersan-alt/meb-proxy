@@ -7,9 +7,9 @@ app = Flask(__name__)
 
 INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 999999; font-family: Arial, sans-serif; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-bottom: 2px solid #38bdf8;">
-    <span style="font-weight: bold; font-size: 14px; color: #38bdf8;">🛡️ MEB Tam Koruma</span>
+    <span style="font-weight: bold; font-size: 14px; color: #38bdf8;">🛡️ MEB Üst Düzey Koruma V3</span>
     <form action="/proxy" method="get" style="display: flex; gap: 8px; margin: 0; flex-grow: 1; max-width: 650px; margin-left: 20px; margin-right: 20px;">
-        <input type="text" name="url" placeholder="Oyun veya site adresi yazın..." style="flex-grow: 1; padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 13px;" required>
+        <input type="text" name="url" placeholder="Oyun, film veya site adresi yazın..." style="flex-grow: 1; padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 13px;" required>
         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 7px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">Git</button>
     </form>
     <a href="/" style="color: #f87171; text-decoration: none; font-size: 13px; font-weight: bold; background: rgba(248,113,113,0.1); padding: 5px 10px; border-radius: 4px;">Ana Sayfa</a>
@@ -17,14 +17,11 @@ INJECTED_HEAD = '''
 <div style="height: 50px;"></div>
 
 <script>
-// CrazyGames ve benzeri sitelerin iframe / domain kilitlerini tamamen bypass eden üst düzey kalkan
+// Oyunların iframe ve domain kilitlerini (CrazyGames vb.) tamamen kaldıran gelişmiş kalkan
 try {
-    // Oyunun iframe içinde olduğunu gizle, kendini ana pencere sanmasını sağla
     Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'frameElement', { get: function() { return null; }, configurable: true });
-
-    // Referrer ve Hostname taklidi
     Object.defineProperty(document, 'referrer', { get: function() { return 'https://www.crazygames.com/'; }, configurable: true });
     
     const targetHost = 'www.crazygames.com';
@@ -37,7 +34,7 @@ try {
     }
 } catch(e) {}
 
-// Link kaçışlarını ve yönlendirmeleri proxy içinde tutan kalkan
+// Sayfa içindeki tüm tıklama ve yönlendirmeleri proxy içinde tutan mekanizma
 document.addEventListener('click', function(e) {
     let target = e.target.closest('a');
     if (target && target.href) {
@@ -76,9 +73,9 @@ def index():
     </head>
     <body>
         <div class="card">
-            <div class="badge">🚀 Tam Koruma Aktif</div>
+            <div class="badge">🚀 Üst Düzey Koruma & Hız Aktif</div>
             <h2>Erişim Geçidi</h2>
-            <p>Engelsiz web ve oyun deneyimi için adresi yazın.</p>
+            <p>Engelsiz oyun ve web deneyimi için adresi yazın.</p>
             <form action="/proxy" method="get">
                 <input type="text" name="url" placeholder="https://ornek.com" required>
                 <button type="submit">Bağlan</button>
@@ -129,9 +126,18 @@ def proxy():
                     proxied_url = f'/proxy?url={full_url}'
                     return f'{attr}={quote}{proxied_url}{quote}'
 
+                # HTML içindeki href, src, action, srcset ve stil bağlantılarını maskele
                 pattern = re.compile(r'(href|src|action|srcset)=(["\'])(.*?)\2', re.IGNORECASE)
                 modified_html = pattern.sub(rewrite_url, html)
                 
+                # CSS içindeki url(...) yapılarını da proxy'ye yönlendir
+                def rewrite_css_url(m):
+                    orig = m.group(1).strip('"\'')
+                    if orig.startswith(('data:', 'http://', 'https://')) == False:
+                        orig = urljoin(target_url, orig)
+                    return f'url("{/proxy?url=orig}")' # fixed string context for safety
+                
+                # Enjekte edilecek başlığı yerleştir
                 if '<head>' in modified_html.lower():
                     modified_html = re.sub(r'<head>', r'<head>' + INJECTED_HEAD, modified_html, count=1, flags=re.IGNORECASE)
                 elif '<body' in modified_html.lower():
