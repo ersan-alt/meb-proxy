@@ -17,6 +17,24 @@ INJECTED_HEAD = '''
 <div style="height: 50px;"></div>
 
 <script>
+// CrazyGames ve benzeri oyunların domain kilidini (embed lock) aşmak için siteyi kandıran kalkan
+try {
+    Object.defineProperty(document, 'referrer', { get: function() { return 'https://www.crazygames.com/'; }, configurable: true });
+    Object.defineProperty(window, 'location', {
+        value: new Proxy(window.location, {
+            get(target, prop) {
+                if (prop === 'hostname') return 'www.crazygames.com';
+                if (prop === 'origin') return 'https://www.crazygames.com';
+                if (prop === 'host') return 'www.crazygames.com';
+                let val = target[prop];
+                return typeof val === 'function' ? val.bind(target) : val;
+            }
+        }),
+        configurable: true
+    });
+} catch(e) {}
+
+// Link kaçışlarını önleyen kalkan
 document.addEventListener('click', function(e) {
     let target = e.target.closest('a');
     if (target && target.href) {
@@ -78,7 +96,7 @@ def proxy():
 
     req_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': target_url
+        'Referer': 'https://www.crazygames.com/'
     }
     
     try:
