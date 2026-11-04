@@ -1,7 +1,7 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v8.0)
-# AÇIKLAMA: MEB bot kamuflesi, Base64 DPI şifreleme, Panik Butonu (ESC/Q) ve 
-#           Unity WebGL / Y8 / CrazyGames destekli tam donanımlı sistem.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v9.0)
+# AÇIKLAMA: MEB bot kamuflesi, Base64 DPI şifreleme, Anti-Detection (Anti-Tespit)
+#           güvenlik katmanı ve Unity WebGL / Y8 / CrazyGames tam destekli sistem.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
@@ -29,7 +29,7 @@ def is_meb_bot(user_agent):
     if not user_agent:
         return True # User-Agent göndermeyen şüpheli tarayıcıları doğrudan bot say
     
-    # MEB filtreleme sistemlerinin ve Fortinet tarayıcılarının kullandığı anahtar kelimeler
+    # MEB filtreleme sistemlerinin ve güvenlik tarayıcılarının kullandığı anahtar kelimeler
     bot_keywords = [
         'bot', 'crawler', 'spider', 'fortinet', 'fortiguard', 
         'cisco', 'zscaler', 'slurp', 'headless', 'netscaler', 'barracuda'
@@ -64,7 +64,7 @@ FAKE_EDUCATION_PAGE = '''<!DOCTYPE html>
 
 
 # ==============================================================================
-# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI, PANİK BUTONU VE BASE64 MOTORU
+# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE ANTI-DETECTION KORUMA KATMANI
 # ==============================================================================
 INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 2147483647; font-family: Arial, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.7); border-bottom: 2px solid #38bdf8;">
@@ -83,6 +83,14 @@ INJECTED_HEAD = '''
 <div style="height: 45px;"></div>
 
 <script>
+// --- ANTI-DETECTION & ANTI-INSPECTION KORUMASI ---
+// Okul ağ denetim sistemlerinin ve proxy algılama scriptlerinin tarayıcıyı yakalamasını engeller
+try {
+    Object.defineProperty(navigator, 'webdriver', { get: function() { return false; }, configurable: true });
+    Object.defineProperty(navigator, 'plugins', { get: function() { return [1, 2, 3, 4, 5]; }, configurable: true });
+    window.console.error = window.console.error || function() {};
+} catch(e) {}
+
 // Base64 URL Şifreleme ile DPI Korumalı Form Gönderimi
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('edu-search-form');
@@ -97,13 +105,6 @@ document.addEventListener('DOMContentLoaded', function() {
             let encoded = btoa(val);
             window.location.href = '/gateway?q=' + encoded;
         };
-    }
-});
-
-// PANİK BUTONU: ESC veya Q tuşuna basıldığında anında EBA'ya yönlendirir
-document.addEventListener('keydown', function(e) {
-    if (e.key === "Escape" || e.key === "q" || e.key === "Q") {
-        window.location.replace("https://eba.gov.tr");
     }
 });
 
@@ -213,7 +214,7 @@ def index():
                 <input type="text" id="main-url" placeholder="https://ornek.com" required>
                 <button type="submit">Sisteme Bağlan</button>
             </form>
-            <div class="hint">İpucu: Hızlı çıkış için ESC veya Q tuşunu kullanabilirsiniz.</div>
+            <div class="hint">Güvenli ve şifrelenmiş tünel protokolü aktiftir.</div>
         </div>
         <script>
         document.getElementById('main-form').onsubmit = function(e) {
@@ -225,11 +226,6 @@ def index():
             let encoded = btoa(val);
             window.location.href = '/gateway?q=' + encoded;
         };
-        document.addEventListener('keydown', function(e) {
-            if (e.key === "Escape" || e.key === "q" || e.key === "Q") {
-                window.location.replace("https://eba.gov.tr");
-            }
-        });
         </script>
     </body>
     </html>
