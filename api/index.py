@@ -1,7 +1,7 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v11.0)
-# AÇIKLAMA: MEB bot kamuflesi, kararlı /proxy?url= görsel/asset yönlendirmesi,
-#           Anti-Detection koruması, CSS url(...) ve Unity WebGL tam desteği.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v12.0)
+# AÇIKLAMA: MEB bot kamuflesi, Dinamik IFrame/Game Proxy Kalkanı, Anti-Detection,
+#           ve Unity WebGL / Y8 / CrazyGames tam ekran oyun desteği.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
@@ -27,7 +27,7 @@ urllib.request.install_opener(opener)
 # ==============================================================================
 def is_meb_bot(user_agent):
     if not user_agent:
-        return True  # User-Agent başlığı olmayan şüpheli tarayıcıları doğrudan bot say
+        return True  # User-Agent başlığı olmayan şüpheli tarayıcıları bot say
     
     bot_keywords = [
         'bot', 'crawler', 'spider', 'fortinet', 'fortiguard', 
@@ -63,16 +63,16 @@ FAKE_EDUCATION_PAGE = '''<!DOCTYPE html>
 
 
 # ==============================================================================
-# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE ASSET YAKALAYICI SCRIPTLER
+# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE DİNAMİK IFRAME / OYUN MOTORU HOOKS
 # ==============================================================================
 INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 2147483647; font-family: Arial, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.7); border-bottom: 2px solid #38bdf8;">
     <div style="display: flex; align-items: center; gap: 8px;">
         <span style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">📚 Eğitim Arşivi</span>
-        <span style="font-size: 12px; color: #94a3b8;">Hızlı Tünel Aktif</span>
+        <span style="font-size: 12px; color: #94a3b8;">Üniversal Oyun Tüneli Aktif</span>
     </div>
     <form action="/proxy" method="get" style="display: flex; gap: 6px; margin: 0; flex-grow: 1; max-width: 550px; margin-left: 15px; margin-right: 15px;">
-        <input type="text" name="url" placeholder="Dosya veya kaynak adresi girin..." style="flex-grow: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 12px; outline: none;" required>
+        <input type="text" name="url" placeholder="Oyun veya kaynak adresi girin (örn: tr.y8.com)..." style="flex-grow: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 12px; outline: none;" required>
         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Getir</button>
     </form>
     <div>
@@ -89,7 +89,7 @@ try {
     window.console.error = window.console.error || function() {};
 } catch(e) {}
 
-// Domain ve Iframe Kalkanı
+// Domain ve Iframe Kalkanı (Embed ve Çerçeve Kilitlerini Kırma)
 try {
     Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
@@ -97,8 +97,24 @@ try {
     Object.defineProperty(document, 'referrer', { get: function() { return window.location.href; }, configurable: true });
 } catch(e) {}
 
-// --- DİNAMİK FETCH & XHR PROXY MOTORU ---
+// --- DİNAMİK IFRAME VE OYUN ÇERÇEVESİ YAKALAYICI MOTORU ---
 (function() {
+    // 1. Dinamik olarak oluşturulan Iframe'lerin src adreslerini proxy üzerinden geçir
+    const originalSetAttribute = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function(name, value) {
+        if (this.tagName === 'IFRAME' && name.toLowerCase() === 'src') {
+            if (value && !value.startsWith('data:') && !value.includes('/proxy?url=')) {
+                if (value.startsWith('//')) value = 'https:' + value;
+                try {
+                    let abs = new URL(value, window.location.href).href;
+                    value = '/proxy?url=' + encodeURIComponent(abs);
+                } catch(e) {}
+            }
+        }
+        return originalSetAttribute.call(this, name, value);
+    };
+
+    // 2. Fetch ve XHR İsteklerini Otomatik Yönlendir
     const nativeFetch = window.fetch;
     window.fetch = function(resource, init) {
         let reqUrl = resource;
@@ -200,7 +216,7 @@ def index():
 
 
 # ==============================================================================
-# BÖLÜM 4: PROXY MOTORU VE GÖRSEL / ASSET YÖNLENDİRİCİ
+# BÖLÜM 4: PROXY MOTORU VE GÖRSEL / IFRAME YÖNLENDİRİCİ
 # ==============================================================================
 @app.route('/proxy')
 def proxy():
@@ -236,12 +252,12 @@ def proxy():
             excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'content-security-policy', 'connection', 'x-frame-options']
             headers_list = [(name, value) for name, value in resp_headers.items() if name.lower() not in excluded_headers]
             
-            # CORS İzinleri (WebGL, .wasm, .data ve tüm resim formatları için şart)
+            # CORS İzinleri (WebGL, .wasm, .data ve iframe içerikleri için hayati önem taşır)
             headers_list.append(('Access-Control-Allow-Origin', '*'))
             headers_list.append(('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE'))
             headers_list.append(('Access-Control-Allow-Headers', '*'))
 
-            # HTML veya CSS dosyalarında linkleri ve görsel yollarını yeniden yaz
+            # HTML veya CSS dosyalarında linkleri, iframe src adreslerini ve görselleri yeniden yaz
             if 'text/html' in content_type or 'text/css' in content_type:
                 try:
                     content_str = body.decode('utf-8', errors='ignore')
@@ -263,7 +279,7 @@ def proxy():
                     proxied_url = f'/proxy?url={full_url}'
                     return f'{attr}={quote}{proxied_url}{quote}'
 
-                # HTML etiketleri (href, src, data-src, srcset, poster vb.)
+                # HTML etiketleri (href, src, iframe src, data-src, srcset, poster vb.)
                 pattern = re.compile(r'(href|src|action|srcset|data-src|data-original|poster)=(["\'])(.*?)\2', re.IGNORECASE)
                 modified_content = pattern.sub(rewrite_url, content_str)
 
@@ -291,7 +307,7 @@ def proxy():
 
                 return Response(modified_content, status_code, headers_list)
             
-            # Resimler, fontlar, sesler ve oyun binary dosyaları (.wasm, .data) ham bayt olarak hızlıca iletilir
+            # Resimler, fontlar, sesler ve oyun binary dosyaları (.wasm, .data) ham bayt olarak iletilir
             return Response(body, status_code, headers_list)
             
     except Exception as e:
