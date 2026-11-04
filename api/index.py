@@ -1,6 +1,6 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v22.0)
-# AÇıklama: Agresif Tıklama ve Navigasyon Yakalayıcı (Poki & GameDistribution Çözümü)
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v23.0)
+# AÇIKLAMA: window.open ve Popup Engelleme/Tünele Kilitleme Motoru
 # ==============================================================================
 
 from flask import Flask, request, Response
@@ -58,7 +58,21 @@ try {
 } catch(e) {}
 
 (function() {
-    // 1. Tüm tıklama ve yönlendirmeleri proxy tüneline kilitleme
+    // 1. WINDOW.OPEN HOOK (Oyunların yeni sekme açma girişimlerini tünele kilitler)
+    const nativeWindowOpen = window.open;
+    window.open = function(url, target, features) {
+        if (url) {
+            if (url.startsWith('//')) url = 'https:' + url;
+            try {
+                let absUrl = new URL(url, window.location.href).href;
+                url = '/proxy?url=' + encodeURIComponent(absUrl);
+            } catch(e) {}
+            window.location.href = url;
+        }
+        return null;
+    };
+
+    // 2. Tüm tıklama ve yönlendirmeleri proxy tüneline kilitleme
     document.addEventListener('click', function(e) {
         let targetLink = e.target.closest('a, [data-url], [data-href]');
         if (targetLink) {
@@ -78,7 +92,7 @@ try {
         }
     }, true);
 
-    // 2. Dinamik Iframe Yakalayıcı
+    // 3. Dinamik Iframe Yakalayıcı
     const origCreateElement = document.createElement;
     document.createElement = function(tagName) {
         const el = origCreateElement.call(document, tagName);
@@ -98,7 +112,7 @@ try {
         return el;
     };
 
-    // 3. Fetch ve XHR İstekleri Tünelleme
+    // 4. Fetch ve XHR İstekleri Tünelleme
     const nativeFetch = window.fetch;
     window.fetch = function(resource, init) {
         let reqUrl = resource instanceof Request ? resource.url : resource;
@@ -130,6 +144,19 @@ try {
 IFRAME_INJECTED_HEAD = '''
 <script>
 (function() {
+    const nativeWindowOpen = window.open;
+    window.open = function(url, target, features) {
+        if (url) {
+            if (url.startsWith('//')) url = 'https:' + url;
+            try {
+                let absUrl = new URL(url, window.location.href).href;
+                url = '/proxy?url=' + encodeURIComponent(absUrl);
+            } catch(e) {}
+            window.location.href = url;
+        }
+        return null;
+    };
+
     document.addEventListener('click', function(e) {
         let targetLink = e.target.closest('a, [data-url], [data-href]');
         if (targetLink) {
