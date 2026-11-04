@@ -17,24 +17,27 @@ INJECTED_HEAD = '''
 <div style="height: 50px;"></div>
 
 <script>
-// CrazyGames ve benzeri oyunların domain kilidini (embed lock) aşmak için siteyi kandıran kalkan
+// CrazyGames ve benzeri sitelerin iframe / domain kilitlerini tamamen bypass eden üst düzey kalkan
 try {
+    // Oyunun iframe içinde olduğunu gizle, kendini ana pencere sanmasını sağla
+    Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
+    Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
+    Object.defineProperty(window, 'frameElement', { get: function() { return null; }, configurable: true });
+
+    // Referrer ve Hostname taklidi
     Object.defineProperty(document, 'referrer', { get: function() { return 'https://www.crazygames.com/'; }, configurable: true });
-    Object.defineProperty(window, 'location', {
-        value: new Proxy(window.location, {
-            get(target, prop) {
-                if (prop === 'hostname') return 'www.crazygames.com';
-                if (prop === 'origin') return 'https://www.crazygames.com';
-                if (prop === 'host') return 'www.crazygames.com';
-                let val = target[prop];
-                return typeof val === 'function' ? val.bind(target) : val;
-            }
-        }),
-        configurable: true
-    });
+    
+    const targetHost = 'www.crazygames.com';
+    const targetOrigin = 'https://www.crazygames.com';
+    
+    if (window.location) {
+        window.location.__defineGetter__('hostname', function() { return targetHost; });
+        window.location.__defineGetter__('host', function() { return targetHost; });
+        window.location.__defineGetter__('origin', function() { return targetOrigin; });
+    }
 } catch(e) {}
 
-// Link kaçışlarını önleyen kalkan
+// Link kaçışlarını ve yönlendirmeleri proxy içinde tutan kalkan
 document.addEventListener('click', function(e) {
     let target = e.target.closest('a');
     if (target && target.href) {
