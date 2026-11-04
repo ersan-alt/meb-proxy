@@ -1,7 +1,7 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v17.0)
-# AÇIKLAMA: MEB bot kamuflesi, Iframe Çift Enjeksiyon (İç Bar) Sorunu Çözümü,
-#           Cloudflare Bypass, Full HTTP Metot Desteği ve Kusursuz Oyun Motoru.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v18.0)
+# AÇIKLAMA: MEB bot kamuflesi, Dinamik IFrame/Element Creator Hook (Poki & CrazyGames Çözümü),
+#           Full HTTP Metot Desteği, Cloudflare Bypass ve Kusursuz Oyun Motoru.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
@@ -63,10 +63,10 @@ FAKE_EDUCATION_PAGE = '''<!DOCTYPE html>
 
 
 # ==============================================================================
-# BÖLÜM 2: GÜVENLİK KALKANLARI (ANA SAYFA VE IFRAME İÇİN AYRI)
+# BÖLÜM 2: GÜVENLİK KALKANLARI VE DİNAMİK ELEMENT YAKALAYICI
 # ==============================================================================
 
-# 1. Sadece ana sayfalar için üst bar içeren tam kalkan
+# 1. Ana sayfalar için üst bar içeren tam kalkan
 MAIN_INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 2147483647; font-family: Arial, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.7); border-bottom: 2px solid #38bdf8;">
     <div style="display: flex; align-items: center; gap: 8px;">
@@ -74,7 +74,7 @@ MAIN_INJECTED_HEAD = '''
         <span style="font-size: 12px; color: #94a3b8;">Üniversal Oyun Tüneli Aktif</span>
     </div>
     <form action="/proxy" method="get" style="display: flex; gap: 6px; margin: 0; flex-grow: 1; max-width: 550px; margin-left: 15px; margin-right: 15px;">
-        <input type="text" name="url" placeholder="CrazyGames, Y8 veya site adresi yazın..." style="flex-grow: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 12px; outline: none;" required>
+        <input type="text" name="url" placeholder="Poki, CrazyGames, Y8 veya site adresi yazın..." style="flex-grow: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 12px; outline: none;" required>
         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Getir</button>
     </form>
     <div>
@@ -97,19 +97,41 @@ try {
     Object.defineProperty(document, 'referrer', { get: function() { return window.location.href; }, configurable: true });
 } catch(e) {}
 
+// --- POKİ VE OYUNLAR İÇİN KRİTİK: DİNAMİK IFRAME VE ELEMENT YAKALAYICI ---
 (function() {
-    const originalSetAttribute = Element.prototype.setAttribute;
-    Element.prototype.setAttribute = function(name, value) {
-        if (this.tagName === 'IFRAME' && name.toLowerCase() === 'src') {
-            if (value && !value.startsWith('data:') && !value.includes('/proxy?url=')) {
-                if (value.startsWith('//')) value = 'https:' + value;
-                try {
-                    let abs = new URL(value, window.location.href).href;
-                    value = '/proxy?url=' + encodeURIComponent(abs);
-                } catch(e) {}
-            }
+    const origCreateElement = document.createElement;
+    document.createElement = function(tagName) {
+        const el = origCreateElement.call(document, tagName);
+        if (tagName.toLowerCase() === 'iframe') {
+            const origSetAttribute = el.setAttribute;
+            el.setAttribute = function(name, val) {
+                if (name.toLowerCase() === 'src' && val && !val.startsWith('data:') && !val.includes('/proxy?url=')) {
+                    if (val.startsWith('//')) val = 'https:' + val;
+                    try {
+                        let abs = new URL(val, window.location.href).href;
+                        val = '/proxy?url=' + encodeURIComponent(abs);
+                    } catch(e) {}
+                }
+                return origSetAttribute.call(this, name, val);
+            };
+            Object.defineProperty(el, 'src', {
+                set: function(val) {
+                    if (val && !val.startsWith('data:') && !val.includes('/proxy?url=')) {
+                        if (val.startsWith('//')) val = 'https:' + val;
+                        try {
+                            let abs = new URL(val, window.location.href).href;
+                            val = '/proxy?url=' + encodeURIComponent(abs);
+                        } catch(e) {}
+                    }
+                    el.setAttribute('src', val);
+                },
+                get: function() {
+                    return el.getAttribute('src');
+                },
+                configurable: true
+            });
         }
-        return originalSetAttribute.call(this, name, value);
+        return el;
     };
 
     const nativeFetch = window.fetch;
@@ -166,7 +188,7 @@ document.addEventListener('click', function(e) {
 </script>
 '''
 
-# 2. Oyunların yüklendiği Iframe'ler için ÜST BAR OLMAYAN saf güvenlik ve yönlendirme scripti
+# 2. Oyunların yüklendiği Iframe'ler için ÜST BAR OLMAYAN saf güvenlik scripti
 IFRAME_INJECTED_HEAD = '''
 <script>
 try {
@@ -176,6 +198,41 @@ try {
 } catch(e) {}
 
 (function() {
+    const origCreateElement = document.createElement;
+    document.createElement = function(tagName) {
+        const el = origCreateElement.call(document, tagName);
+        if (tagName.toLowerCase() === 'iframe') {
+            const origSetAttribute = el.setAttribute;
+            el.setAttribute = function(name, val) {
+                if (name.toLowerCase() === 'src' && val && !val.startsWith('data:') && !val.includes('/proxy?url=')) {
+                    if (val.startsWith('//')) val = 'https:' + val;
+                    try {
+                        let abs = new URL(val, window.location.href).href;
+                        val = '/proxy?url=' + encodeURIComponent(abs);
+                    } catch(e) {}
+                }
+                return origSetAttribute.call(this, name, val);
+            };
+            Object.defineProperty(el, 'src', {
+                set: function(val) {
+                    if (val && !val.startsWith('data:') && !val.includes('/proxy?url=')) {
+                        if (val.startsWith('//')) val = 'https:' + val;
+                        try {
+                            let abs = new URL(val, window.location.href).href;
+                            val = '/proxy?url=' + encodeURIComponent(abs);
+                        } catch(e) {}
+                    }
+                    el.setAttribute('src', val);
+                },
+                get: function() {
+                    return el.getAttribute('src');
+                },
+                configurable: true
+            });
+        }
+        return el;
+    };
+
     const nativeFetch = window.fetch;
     window.fetch = function(resource, init) {
         let reqUrl = resource;
@@ -247,7 +304,7 @@ def index():
             <h2>Erişim ve Depo Geçidi</h2>
             <p>Eğitim materyalleri, kaynaklar ve oyunlar için adresi girin.</p>
             <form action="/proxy" method="get">
-                <input type="text" name="url" placeholder="https://www.crazygames.com" required>
+                <input type="text" name="url" placeholder="https://poki.com" required>
                 <button type="submit">Sisteme Bağlan</button>
             </form>
             <div class="hint">Yüksek hızlı ve korumalı tünel protokolü aktiftir.</div>
@@ -258,7 +315,7 @@ def index():
 
 
 # ==============================================================================
-# BÖLÜM 4: AKILLI IFRAME TESPİTLİ PROXY MOTORU
+# BÖLÜM 4: DİNAMİK ELEMENT YAKALAYICILI PROXY MOTORU
 # ==============================================================================
 @app.route('/proxy', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def proxy():
@@ -360,7 +417,6 @@ def proxy():
                 modified_content = css_pattern.sub(rewrite_css_url, modified_content)
                 
                 if 'text/html' in content_type:
-                    # TARAYICI İSTEĞİNİN IFRAME OLUP OLMADIĞINI KONTROL ETMEK
                     sec_dest = request.headers.get('Sec-Fetch-Dest', '')
                     injection_script = IFRAME_INJECTED_HEAD if sec_dest == 'iframe' else MAIN_INJECTED_HEAD
 
