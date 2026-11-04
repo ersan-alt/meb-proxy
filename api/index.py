@@ -1,5 +1,6 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v21.0)
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v22.0)
+# AÇıklama: Agresif Tıklama ve Navigasyon Yakalayıcı (Poki & GameDistribution Çözümü)
 # ==============================================================================
 
 from flask import Flask, request, Response
@@ -57,6 +58,27 @@ try {
 } catch(e) {}
 
 (function() {
+    // 1. Tüm tıklama ve yönlendirmeleri proxy tüneline kilitleme
+    document.addEventListener('click', function(e) {
+        let targetLink = e.target.closest('a, [data-url], [data-href]');
+        if (targetLink) {
+            let hrefVal = targetLink.getAttribute('href') || targetLink.getAttribute('data-url') || targetLink.getAttribute('data-href');
+            if (hrefVal && !hrefVal.startsWith('javascript:') && !hrefVal.startsWith('#') && !hrefVal.startsWith('mailto:') && !hrefVal.startsWith('tel:') && !hrefVal.startsWith('data:')) {
+                if (!hrefVal.includes('/proxy?url=')) {
+                    e.preventDefault();
+                    if (hrefVal.startsWith('//')) hrefVal = 'https:' + hrefVal;
+                    try {
+                        let fullDest = new URL(hrefVal, window.location.href).href;
+                        window.location.href = '/proxy?url=' + encodeURIComponent(fullDest);
+                    } catch(err) {
+                        window.location.href = hrefVal;
+                    }
+                }
+            }
+        }
+    }, true);
+
+    // 2. Dinamik Iframe Yakalayıcı
     const origCreateElement = document.createElement;
     document.createElement = function(tagName) {
         const el = origCreateElement.call(document, tagName);
@@ -76,6 +98,7 @@ try {
         return el;
     };
 
+    // 3. Fetch ve XHR İstekleri Tünelleme
     const nativeFetch = window.fetch;
     window.fetch = function(resource, init) {
         let reqUrl = resource instanceof Request ? resource.url : resource;
@@ -101,30 +124,29 @@ try {
         return nativeOpen.apply(this, arguments);
     };
 })();
-
-document.addEventListener('click', function(e) {
-    let targetLink = e.target.closest('a');
-    if (targetLink && targetLink.href) {
-        let hrefVal = targetLink.getAttribute('href');
-        if (hrefVal && !hrefVal.startsWith('javascript:') && !hrefVal.startsWith('#') && !hrefVal.startsWith('mailto:') && !hrefVal.startsWith('tel:')) {
-            if (!hrefVal.includes('/proxy?url=')) {
-                e.preventDefault();
-                try {
-                    let fullDest = new URL(hrefVal, window.location.href).href;
-                    window.location.href = '/proxy?url=' + encodeURIComponent(fullDest);
-                } catch(e) {
-                    window.location.href = hrefVal;
-                }
-            }
-        }
-    }
-}, true);
 </script>
 '''
 
 IFRAME_INJECTED_HEAD = '''
 <script>
 (function() {
+    document.addEventListener('click', function(e) {
+        let targetLink = e.target.closest('a, [data-url], [data-href]');
+        if (targetLink) {
+            let hrefVal = targetLink.getAttribute('href') || targetLink.getAttribute('data-url') || targetLink.getAttribute('data-href');
+            if (hrefVal && !hrefVal.startsWith('javascript:') && !hrefVal.startsWith('#') && !hrefVal.startsWith('data:')) {
+                if (!hrefVal.includes('/proxy?url=')) {
+                    e.preventDefault();
+                    if (hrefVal.startsWith('//')) hrefVal = 'https:' + hrefVal;
+                    try {
+                        let fullDest = new URL(hrefVal, window.location.href).href;
+                        window.location.href = '/proxy?url=' + encodeURIComponent(fullDest);
+                    } catch(err) {}
+                }
+            }
+        }
+    }, true);
+
     const nativeFetch = window.fetch;
     window.fetch = function(resource, init) {
         let reqUrl = resource instanceof Request ? resource.url : resource;
@@ -137,17 +159,6 @@ IFRAME_INJECTED_HEAD = '''
             } catch(e) {}
         }
         return nativeFetch.call(this, resource, init);
-    };
-
-    const nativeOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url) {
-        if (typeof url === 'string' && !url.startsWith('data:') && !url.includes('/proxy?url=')) {
-            if (url.startsWith('//')) url = 'https:' + url;
-            try {
-                arguments[1] = '/proxy?url=' + encodeURIComponent(new URL(url, window.location.href).href);
-            } catch(e) {}
-        }
-        return nativeOpen.apply(this, arguments);
     };
 })();
 </script>
