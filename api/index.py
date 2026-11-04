@@ -1,5 +1,7 @@
 from flask import Flask, request, Response
 import requests
+from urllib.parse import urljoin, urlparse
+import re
 
 app = Flask(__name__)
 
@@ -23,7 +25,7 @@ def index():
     <body>
         <div class="container">
             <h2>MEB Erişim Geçidi (Vercel)</h2>
-            <div id="status-box">✅ Sistem aktif ve son hız çalışıyor!</div>
+            <div id="status-box">✅ Otomatik Link Yönlendirme Aktif!</div>
             
             <form action="/proxy" method="get" style="margin-top: 20px;">
                 <label for="url">Gitmek İstediğiniz Adres:</label>
@@ -37,23 +39,46 @@ def index():
 
 @app.route('/proxy')
 def proxy():
-    url = request.args.get('url')
-    if not url:
+    target_url = request.args.get('url')
+    if not target_url:
         return "Lütfen bir URL belirtin.", 400
     
-    if not url.startswith('http://') and not url.startswith('https://'):
-        url = 'https://' + url
+    if not target_url.startswith('http://') and not target_url.startswith('https://'):
+        target_url = 'https://' + target_url
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': url
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = requests.get(target_url, headers=headers, timeout=12)
+        content_type = resp.headers.get('Content-Type', '')
+
+        # Eğer gelen içerik HTML ise linkleri proxy üzerinden geçecek şekilde güncelle
+        if 'text/html' in content_type:
+            html = resp.text
+            
+            # href, src ve action parametrelerindeki tüm yönlendirmeleri yakala ve proxy uzantısına çevir
+            def rewrite_url(match):
+                attr = match.group(1)
+                quote = match.group(2)
+                original_link = match.group(3)
+                
+                if original_link.startswith(('javascript:', 'mailto:', '#', 'data:')):
+                    return f'{attr}={quote}{original_link}{quote}'
+                
+                full_url = urljoin(target_url, original_link)
+                proxied_url = f'/proxy?url={full_url}'
+                return f'{attr}={quote}{proxied_url}{quote}'
+
+            pattern = re.compile(r'(href|src|action)=(["\'])(.*?)\2', re.IGNORECASE)
+            modified_html = pattern.sub(rewrite_url, html)
+            
+            return Response(modified_html, resp.status_code, [(k, v) for k, v in resp.headers.items() if k.lower() not in ['content-encoding', 'content-length', 'transfer-encoding']])
+        
+        # HTML dışındaki dosya ve içerikleri (resim, video akışı vs.) doğrudan ilet
         excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
         headers_list = [(name, value) for name, value in resp.headers.items() if name.lower() not in excluded_headers]
-        
         return Response(resp.content, resp.status_code, headers_list)
             
     except Exception as e:
