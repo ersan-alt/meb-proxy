@@ -1,7 +1,5 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v20.0)
-# AÇIKLAMA: Tek dosya mimarisi (Vercel Routing Uyumlu), MEB bot kamuflesi, 
-#           Gzip önleme, Dinamik IFrame/Element Hook ve Kusursuz Oyun Motoru.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v21.0)
 # ==============================================================================
 
 from flask import Flask, request, Response
