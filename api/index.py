@@ -1,7 +1,7 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v16.0)
-# AÇIKLAMA: Cloudflare/Bot Bypass Başlıkları, Dinamik IFrame/CDN Proxy Kalkanı,
-#           Tam HTTP Metot Desteği (GET/POST) ve Kusursuz Oyun & Görsel Motoru.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v17.0)
+# AÇIKLAMA: MEB bot kamuflesi, Iframe Çift Enjeksiyon (İç Bar) Sorunu Çözümü,
+#           Cloudflare Bypass, Full HTTP Metot Desteği ve Kusursuz Oyun Motoru.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
@@ -63,9 +63,11 @@ FAKE_EDUCATION_PAGE = '''<!DOCTYPE html>
 
 
 # ==============================================================================
-# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE OYUN ÇERÇEVESİ HOOKS
+# BÖLÜM 2: GÜVENLİK KALKANLARI (ANA SAYFA VE IFRAME İÇİN AYRI)
 # ==============================================================================
-INJECTED_HEAD = '''
+
+# 1. Sadece ana sayfalar için üst bar içeren tam kalkan
+MAIN_INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 2147483647; font-family: Arial, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.7); border-bottom: 2px solid #38bdf8;">
     <div style="display: flex; align-items: center; gap: 8px;">
         <span style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">📚 Eğitim Arşivi</span>
@@ -82,14 +84,12 @@ INJECTED_HEAD = '''
 <div style="height: 45px;"></div>
 
 <script>
-// --- ANTI-DETECTION KORUMASI ---
 try {
     Object.defineProperty(navigator, 'webdriver', { get: function() { return false; }, configurable: true });
     Object.defineProperty(navigator, 'plugins', { get: function() { return [1, 2, 3, 4, 5]; }, configurable: true });
     window.console.error = window.console.error || function() {};
 } catch(e) {}
 
-// Domain ve Iframe Kalkanı
 try {
     Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
@@ -97,7 +97,6 @@ try {
     Object.defineProperty(document, 'referrer', { get: function() { return window.location.href; }, configurable: true });
 } catch(e) {}
 
-// --- DİNAMİK IFRAME VE OYUN ÇERÇEVESİ YAKALAYICI MOTORU ---
 (function() {
     const originalSetAttribute = Element.prototype.setAttribute;
     Element.prototype.setAttribute = function(name, value) {
@@ -147,7 +146,6 @@ try {
     };
 })();
 
-// Tık Yönlendirme Kontrolü
 document.addEventListener('click', function(e) {
     let targetLink = e.target.closest('a');
     if (targetLink && targetLink.href) {
@@ -165,6 +163,52 @@ document.addEventListener('click', function(e) {
         }
     }
 }, true);
+</script>
+'''
+
+# 2. Oyunların yüklendiği Iframe'ler için ÜST BAR OLMAYAN saf güvenlik ve yönlendirme scripti
+IFRAME_INJECTED_HEAD = '''
+<script>
+try {
+    Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
+    Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
+    Object.defineProperty(window, 'frameElement', { get: function() { return null; }, configurable: true });
+} catch(e) {}
+
+(function() {
+    const nativeFetch = window.fetch;
+    window.fetch = function(resource, init) {
+        let reqUrl = resource;
+        if (resource instanceof Request) {
+            reqUrl = resource.url;
+        }
+        if (typeof reqUrl === 'string' && !reqUrl.startsWith('data:') && !reqUrl.includes('/proxy?url=')) {
+            if (reqUrl.startsWith('//')) reqUrl = 'https:' + reqUrl;
+            try {
+                let absoluteTarget = new URL(reqUrl, window.location.href).href;
+                let proxiedTarget = '/proxy?url=' + encodeURIComponent(absoluteTarget);
+                if (resource instanceof Request) {
+                    resource = new Request(proxiedTarget, init);
+                } else {
+                    resource = proxiedTarget;
+                }
+            } catch(e) {}
+        }
+        return nativeFetch.call(this, resource, init);
+    };
+
+    const nativeOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {
+        if (typeof url === 'string' && !url.startsWith('data:') && !url.includes('/proxy?url=')) {
+            if (url.startsWith('//')) url = 'https:' + url;
+            try {
+                let absoluteTarget = new URL(url, window.location.href).href;
+                arguments[1] = '/proxy?url=' + encodeURIComponent(absoluteTarget);
+            } catch(e) {}
+        }
+        return nativeOpen.apply(this, arguments);
+    };
+})();
 </script>
 '''
 
@@ -214,7 +258,7 @@ def index():
 
 
 # ==============================================================================
-# BÖLÜM 4: CLOUDFLARE BYPASS VE GERÇEKÇİ TARAYICI BAŞLIKLI PROXY MOTORU
+# BÖLÜM 4: AKILLI IFRAME TESPİTLİ PROXY MOTORU
 # ==============================================================================
 @app.route('/proxy', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def proxy():
@@ -239,7 +283,6 @@ def proxy():
     parsed_target = urlparse(target_url)
     target_origin = f"{parsed_target.scheme}://{parsed_target.netloc}"
 
-    # GELİŞMİŞ TARAYICI VE CLOUDFLARE BYPASS BAŞLIKLARI
     req_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -248,8 +291,8 @@ def proxy():
         'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
         'Sec-Ch-Ua-Mobile': '?0',
         'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Dest': request.headers.get('Sec-Fetch-Dest', 'document'),
+        'Sec-Fetch-Mode': request.headers.get('Sec-Fetch-Mode', 'navigate'),
         'Sec-Fetch-Site': 'cross-site',
         'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1',
@@ -317,16 +360,19 @@ def proxy():
                 modified_content = css_pattern.sub(rewrite_css_url, modified_content)
                 
                 if 'text/html' in content_type:
+                    # TARAYICI İSTEĞİNİN IFRAME OLUP OLMADIĞINI KONTROL ETMEK
+                    sec_dest = request.headers.get('Sec-Fetch-Dest', '')
+                    injection_script = IFRAME_INJECTED_HEAD if sec_dest == 'iframe' else MAIN_INJECTED_HEAD
+
                     if '<head>' in modified_content.lower():
-                        modified_content = re.sub(r'<head>', r'<head>' + INJECTED_HEAD, modified_content, count=1, flags=re.IGNORECASE)
+                        modified_content = re.sub(r'<head>', r'<head>' + injection_script, modified_content, count=1, flags=re.IGNORECASE)
                     elif '<body' in modified_content.lower():
-                        modified_content = re.sub(r'<body[^>]*>', lambda m: m.group(0) + INJECTED_HEAD, modified_content, count=1, flags=re.IGNORECASE)
+                        modified_content = re.sub(r'<body[^>]*>', lambda m: m.group(0) + injection_script, modified_content, count=1, flags=re.IGNORECASE)
                     else:
-                        modified_content = INJECTED_HEAD + modified_content
+                        modified_content = injection_script + modified_content
 
                 return Response(modified_content, status_code, headers_list)
             
-            # Görsel, font, ses, .wasm ve oyun dosyalarını ham bayt olarak ilet
             return Response(body, status_code, headers_list)
             
     except Exception as e:
