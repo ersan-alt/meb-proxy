@@ -7,9 +7,9 @@ app = Flask(__name__)
 
 INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 999999; font-family: Arial, sans-serif; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-bottom: 2px solid #38bdf8;">
-    <span style="font-weight: bold; font-size: 14px; color: #38bdf8;">🛡️ MEB Ultra Hızlı Koruma</span>
+    <span style="font-weight: bold; font-size: 14px; color: #38bdf8;">🛡️ MEB Y8 Ultra Koruma</span>
     <form action="/proxy" method="get" style="display: flex; gap: 8px; margin: 0; flex-grow: 1; max-width: 650px; margin-left: 20px; margin-right: 20px;">
-        <input type="text" name="url" placeholder="Oyun, film veya site adresi yazın..." style="flex-grow: 1; padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 13px;" required>
+        <input type="text" name="url" placeholder="https://tr.y8.com veya oyun adresi..." style="flex-grow: 1; padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 13px;" required>
         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 7px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">Git</button>
     </form>
     <a href="/" style="color: #f87171; text-decoration: none; font-size: 13px; font-weight: bold; background: rgba(248,113,113,0.1); padding: 5px 10px; border-radius: 4px;">Ana Sayfa</a>
@@ -17,15 +17,15 @@ INJECTED_HEAD = '''
 <div style="height: 50px;"></div>
 
 <script>
-// 1. Domain ve Iframe Kilitlerini Kıran Kalkan
+// Y8.com ve benzeri oyun sitelerinin domain / iframe kilitlerini kaldıran kalkan
 try {
     Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'frameElement', { get: function() { return null; }, configurable: true });
-    Object.defineProperty(document, 'referrer', { get: function() { return 'https://www.crazygames.com/'; }, configurable: true });
+    Object.defineProperty(document, 'referrer', { get: function() { return 'https://tr.y8.com/'; }, configurable: true });
     
-    const targetHost = 'www.crazygames.com';
-    const targetOrigin = 'https://www.crazygames.com';
+    const targetHost = 'tr.y8.com';
+    const targetOrigin = 'https://tr.y8.com';
     
     if (window.location) {
         window.location.__defineGetter__('hostname', function() { return targetHost; });
@@ -34,7 +34,7 @@ try {
     }
 } catch(e) {}
 
-// 2. Oyunun Arkada Yaptığı Tüm İstekleri (Fetch & XHR) Proxy Üzerine Yönlendiren Süper Motor
+// Oyunların arka planda yaptığı tüm istekleri (Fetch & XHR) proxy üzerinden akıtan motor
 (function() {
     const originalFetch = window.fetch;
     window.fetch = function(input, init) {
@@ -64,7 +64,7 @@ try {
     };
 })();
 
-// 3. Tıklama Yönlendirmeleri
+// Tıklama ve yönlendirmeleri proxy içinde tutan mekanizma
 document.addEventListener('click', function(e) {
     let target = e.target.closest('a');
     if (target && target.href) {
@@ -103,11 +103,11 @@ def index():
     </head>
     <body>
         <div class="card">
-            <div class="badge">🚀 Üst Düzey Koruma & Hız Aktif</div>
+            <div class="badge">🚀 Y8 & Oyun Koruma Aktif</div>
             <h2>Erişim Geçidi</h2>
-            <p>Engelsiz oyun ve web deneyimi için adresi yazın.</p>
+            <p>Y8 ve diğer oyunlar için adresi yazın.</p>
             <form action="/proxy" method="get">
-                <input type="text" name="url" placeholder="https://ornek.com" required>
+                <input type="text" name="url" placeholder="https://tr.y8.com" required>
                 <button type="submit">Bağlan</button>
             </form>
         </div>
@@ -126,7 +126,7 @@ def proxy():
 
     req_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': 'https://www.crazygames.com/'
+        'Referer': 'https://tr.y8.com/'
     }
     
     try:
@@ -171,4 +171,4 @@ def proxy():
             return Response(body, status_code, headers_list)
             
     except Exception as e:
-        return f"Bağlantı hatası veya hedef site engeline takıldı: {str(e)}", 500
+        return f"Bağlantı hatası veya engel: {str(e)}", 500
