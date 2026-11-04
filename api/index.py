@@ -5,10 +5,9 @@ import re
 
 app = Flask(__name__)
 
-# Sayfanın en üstüne eklenen, her an başka bir siteye geçmeni sağlayan profesyonel kontrol barı ve JS koruma kalkanı
 INJECTED_HEAD = b'''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 999999; font-family: Arial, sans-serif; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-bottom: 2px solid #38bdf8;">
-    <span style="font-weight: bold; font-size: 14px; color: #38bdf8; display: flex; align-items: center; gap: 5px;">🛡️ MEB Üst Düzey Geçit</span>
+    <span style="font-weight: bold; font-size: 14px; color: #38bdf8;">🛡️ MEB Tam Koruma</span>
     <form action="/proxy" method="get" style="display: flex; gap: 8px; margin: 0; flex-grow: 1; max-width: 650px; margin-left: 20px; margin-right: 20px;">
         <input type="text" name="url" placeholder="Oyun, film veya site adresi yazın..." style="flex-grow: 1; padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 13px;" required>
         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 7px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">Git</button>
@@ -18,7 +17,6 @@ INJECTED_HEAD = b'''
 <div style="height: 50px;"></div>
 
 <script>
-// Oyun sitelerindeki dinamik JS yönlendirmelerini ve link kaçışlarını bloke eden akıllı kalkan
 document.addEventListener('click', function(e) {
     let target = e.target.closest('a');
     if (target && target.href) {
@@ -57,11 +55,11 @@ def index():
     </head>
     <body>
         <div class="card">
-            <div class="badge">🚀 Tam Koruma & Akıllı Yönlendirme Aktif</div>
+            <div class="badge">🚀 Tam Koruma Aktif</div>
             <h2>Erişim Geçidi</h2>
-            <p>Engelsiz oyun ve web deneyimi için adresi yazın.</p>
+            <p>Engelsiz web ve oyun deneyimi için adresi yazın.</p>
             <form action="/proxy" method="get">
-                <input type="text" name="url" placeholder="https://oyun-sitesi.com" required>
+                <input type="text" name="url" placeholder="https://ornek.com" required>
                 <button type="submit">Bağlan</button>
             </form>
         </div>
@@ -88,7 +86,6 @@ def proxy():
     try:
         resp = requests.get(target_url, headers=headers, cookies=incoming_cookies, allow_redirects=True, timeout=15)
         
-        # Hedef site yönlendirme yaparsa onu anında yakalayıp içeri al
         if resp.history:
             final_url = resp.url
             return f'<meta http-equiv="refresh" content="0;url=/proxy?url={final_url}">', 200
@@ -110,11 +107,9 @@ def proxy():
                 proxied_url = f'/proxy?url={full_url}'
                 return f'{attr}={quote}{proxied_url}{quote}'
 
-            # HTML içindeki tüm bağlantı, kaynak ve form yollarını maskele
             pattern = re.compile(r'(href|src|action|srcset)=(["\'])(.*?)\2', re.IGNORECASE)
             modified_html = pattern.sub(rewrite_url, html)
             
-            # Üst kontrol çubuğunu ve JS kaçış engelleme betiğini sayfaya göm
             if b'<head>' in modified_html.lower():
                 modified_html = re.sub(b'<head>', b'<head>' + INJECTED_HEAD, modified_html, count=1, flags=re.IGNORECASE)
             elif b'<body' in modified_html.lower():
@@ -126,7 +121,6 @@ def proxy():
             headers_list = [(name, value) for name, value in resp.headers.items() if name.lower() not in excluded_headers]
             return Response(modified_html, resp.status_code, headers_list)
         
-        # Medya ve diğer dosyaları filtresiz ilet
         excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection', 'content-security-policy']
         headers_list = [(name, value) for name, value in resp.headers.items() if name.lower() not in excluded_headers]
         return Response(resp.content, resp.status_code, headers_list)
