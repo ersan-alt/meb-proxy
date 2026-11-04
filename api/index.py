@@ -1,7 +1,7 @@
 # ==============================================================================
-# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v12.0)
-# AÇIKLAMA: MEB bot kamuflesi, Dinamik IFrame/Game Proxy Kalkanı, Anti-Detection,
-#           ve Unity WebGL / Y8 / CrazyGames tam ekran oyun desteği.
+# PROJE: ULeader Akademik Eğitim Notları ve Güvenli Arşiv Geçidi (Ultimate v13.0)
+# AÇIKLAMA: MEB bot kamuflesi, Full HTTP Metot Desteği (GET/POST/OPTIONS),
+#           Gelişmiş Origin/Referer Spoofing, JS/CSS Asset Tüneli ve Oyun Desteği.
 # ==============================================================================
 
 from flask import Flask, request, Response, jsonify
@@ -63,7 +63,7 @@ FAKE_EDUCATION_PAGE = '''<!DOCTYPE html>
 
 
 # ==============================================================================
-# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE DİNAMİK IFRAME / OYUN MOTORU HOOKS
+# BÖLÜM 2: İSTEMCİ GÜVENLİK KALKANI VE OYUN ÇERÇEVESİ HOOKS
 # ==============================================================================
 INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 2147483647; font-family: Arial, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.7); border-bottom: 2px solid #38bdf8;">
@@ -89,7 +89,7 @@ try {
     window.console.error = window.console.error || function() {};
 } catch(e) {}
 
-// Domain ve Iframe Kalkanı (Embed ve Çerçeve Kilitlerini Kırma)
+// Domain ve Iframe Kalkanı
 try {
     Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
@@ -97,9 +97,8 @@ try {
     Object.defineProperty(document, 'referrer', { get: function() { return window.location.href; }, configurable: true });
 } catch(e) {}
 
-// --- DİNAMİK IFRAME VE OYUN ÇERÇEVESİ YAKALAYICI MOTORU ---
+// --- DİNAMİK IFRAME VE OYUN MOTORU YAKALAYICI ---
 (function() {
-    // 1. Dinamik olarak oluşturulan Iframe'lerin src adreslerini proxy üzerinden geçir
     const originalSetAttribute = Element.prototype.setAttribute;
     Element.prototype.setAttribute = function(name, value) {
         if (this.tagName === 'IFRAME' && name.toLowerCase() === 'src') {
@@ -114,7 +113,6 @@ try {
         return originalSetAttribute.call(this, name, value);
     };
 
-    // 2. Fetch ve XHR İsteklerini Otomatik Yönlendir
     const nativeFetch = window.fetch;
     window.fetch = function(resource, init) {
         let reqUrl = resource;
@@ -172,7 +170,7 @@ document.addEventListener('click', function(e) {
 
 
 # ==============================================================================
-# BÖLÜM 3: AKADEMİK SOSYAL MÜHENDİSLİK ANA SAYFA RÖTASI
+# BÖLÜM 3: ANA SAYFA RÖTASI
 # ==============================================================================
 @app.route('/')
 def index():
@@ -216,10 +214,17 @@ def index():
 
 
 # ==============================================================================
-# BÖLÜM 4: PROXY MOTORU VE GÖRSEL / IFRAME YÖNLENDİRİCİ
+# BÖLÜM 4: FULL METOTLU (GET, POST, OPTIONS) PROXY MOTORU
 # ==============================================================================
-@app.route('/proxy')
+@app.route('/proxy', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def proxy():
+    if request.method == 'OPTIONS':
+        resp = Response('', status=200)
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = '*'
+        return resp
+
     user_agent = request.headers.get('User-Agent', '')
     if is_meb_bot(user_agent):
         return FAKE_EDUCATION_PAGE
@@ -231,17 +236,23 @@ def proxy():
     if not target_url.startswith('http://') and not target_url.startswith('https://'):
         target_url = 'https://' + target_url
 
+    parsed_target = urlparse(target_url)
+    target_origin = f"{parsed_target.scheme}://{parsed_target.netloc}"
+
     req_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': target_url
+        'Referer': target_origin + '/',
+        'Origin': target_origin
     }
     
-    incoming_cookie = request.headers.get('Cookie')
-    if incoming_cookie:
-        req_headers['Cookie'] = incoming_cookie
+    for h_key, h_val in request.headers:
+        if h_key.lower() not in ['host', 'content-length', 'connection']:
+            req_headers[h_key] = h_val
+
+    request_data = request.get_data() if request.method in ['POST', 'PUT', 'PATCH'] else None
 
     try:
-        req = urllib.request.Request(target_url, headers=req_headers)
+        req = urllib.request.Request(target_url, data=request_data, headers=req_headers, method=request.method)
         with urllib.request.urlopen(req, timeout=25) as resp:
             body = resp.read()
             status_code = resp.status
@@ -252,13 +263,11 @@ def proxy():
             excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'content-security-policy', 'connection', 'x-frame-options']
             headers_list = [(name, value) for name, value in resp_headers.items() if name.lower() not in excluded_headers]
             
-            # CORS İzinleri (WebGL, .wasm, .data ve iframe içerikleri için hayati önem taşır)
             headers_list.append(('Access-Control-Allow-Origin', '*'))
             headers_list.append(('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE'))
             headers_list.append(('Access-Control-Allow-Headers', '*'))
 
-            # HTML veya CSS dosyalarında linkleri, iframe src adreslerini ve görselleri yeniden yaz
-            if 'text/html' in content_type or 'text/css' in content_type:
+            if 'text/html' in content_type or 'text/css' in content_type or 'javascript' in content_type:
                 try:
                     content_str = body.decode('utf-8', errors='ignore')
                 except:
@@ -279,11 +288,9 @@ def proxy():
                     proxied_url = f'/proxy?url={full_url}'
                     return f'{attr}={quote}{proxied_url}{quote}'
 
-                # HTML etiketleri (href, src, iframe src, data-src, srcset, poster vb.)
                 pattern = re.compile(r'(href|src|action|srcset|data-src|data-original|poster)=(["\'])(.*?)\2', re.IGNORECASE)
                 modified_content = pattern.sub(rewrite_url, content_str)
 
-                # CSS background-image url(...) görsel yollarını düzeltme
                 def rewrite_css_url(m):
                     q = m.group(1)
                     orig_url = m.group(2).strip()
@@ -307,7 +314,6 @@ def proxy():
 
                 return Response(modified_content, status_code, headers_list)
             
-            # Resimler, fontlar, sesler ve oyun binary dosyaları (.wasm, .data) ham bayt olarak iletilir
             return Response(body, status_code, headers_list)
             
     except Exception as e:
