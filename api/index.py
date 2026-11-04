@@ -7,9 +7,9 @@ app = Flask(__name__)
 
 INJECTED_HEAD = '''
 <div id="proxy-top-bar" style="position: fixed; top: 0; left: 0; width: 100%; background: #0f172a; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; z-index: 999999; font-family: Arial, sans-serif; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-bottom: 2px solid #38bdf8;">
-    <span style="font-weight: bold; font-size: 14px; color: #38bdf8;">🛡️ MEB Y8 Ultra Koruma</span>
+    <span style="font-weight: bold; font-size: 14px; color: #38bdf8;">🛡️ MEB Üniversal Oyun Koruma v4</span>
     <form action="/proxy" method="get" style="display: flex; gap: 8px; margin: 0; flex-grow: 1; max-width: 650px; margin-left: 20px; margin-right: 20px;">
-        <input type="text" name="url" placeholder="https://tr.y8.com veya oyun adresi..." style="flex-grow: 1; padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 13px;" required>
+        <input type="text" name="url" placeholder="Oyun veya site adresi yazın (örn: tr.y8.com)..." style="flex-grow: 1; padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; font-size: 13px;" required>
         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 7px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">Git</button>
     </form>
     <a href="/" style="color: #f87171; text-decoration: none; font-size: 13px; font-weight: bold; background: rgba(248,113,113,0.1); padding: 5px 10px; border-radius: 4px;">Ana Sayfa</a>
@@ -17,15 +17,15 @@ INJECTED_HEAD = '''
 <div style="height: 50px;"></div>
 
 <script>
-// Y8.com ve benzeri oyun sitelerinin domain / iframe kilitlerini kaldıran kalkan
+// 1. Tüm Domain, Iframe ve Embed kilitlerini kaldıran evrensel kalkan
 try {
     Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
     Object.defineProperty(window, 'frameElement', { get: function() { return null; }, configurable: true });
     Object.defineProperty(document, 'referrer', { get: function() { return 'https://tr.y8.com/'; }, configurable: true });
     
-    const targetHost = 'tr.y8.com';
-    const targetOrigin = 'https://tr.y8.com';
+    const targetHost = window.location.hostname || 'tr.y8.com';
+    const targetOrigin = window.location.origin || 'https://tr.y8.com';
     
     if (window.location) {
         window.location.__defineGetter__('hostname', function() { return targetHost; });
@@ -34,7 +34,7 @@ try {
     }
 } catch(e) {}
 
-// Oyunların arka planda yaptığı tüm istekleri (Fetch & XHR) proxy üzerinden akıtan motor
+// 2. Unity WebGL ve ağır oyunların arka plandaki tüm Fetch & XHR isteklerini yakalayan süper motor
 (function() {
     const originalFetch = window.fetch;
     window.fetch = function(input, init) {
@@ -43,6 +43,7 @@ try {
             url = input.url;
         }
         if (typeof url === 'string' && !url.startsWith('data:') && !url.includes('/proxy?url=')) {
+            if (url.startsWith('//')) url = 'https:' + url;
             let absUrl = new URL(url, window.location.href).href;
             let proxied = '/proxy?url=' + encodeURIComponent(absUrl);
             if (input instanceof Request) {
@@ -57,6 +58,7 @@ try {
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(method, url) {
         if (typeof url === 'string' && !url.startsWith('data:') && !url.includes('/proxy?url=')) {
+            if (url.startsWith('//')) url = 'https:' + url;
             let absUrl = new URL(url, window.location.href).href;
             arguments[1] = '/proxy?url=' + encodeURIComponent(absUrl);
         }
@@ -64,7 +66,7 @@ try {
     };
 })();
 
-// Tıklama ve yönlendirmeleri proxy içinde tutan mekanizma
+// 3. Tıklama ve yönlendirme kontrolü
 document.addEventListener('click', function(e) {
     let target = e.target.closest('a');
     if (target && target.href) {
@@ -103,9 +105,9 @@ def index():
     </head>
     <body>
         <div class="card">
-            <div class="badge">🚀 Y8 & Oyun Koruma Aktif</div>
+            <div class="badge">🚀 Üniversal Oyun Altyapısı Aktif</div>
             <h2>Erişim Geçidi</h2>
-            <p>Y8 ve diğer oyunlar için adresi yazın.</p>
+            <p>Y8, CrazyGames ve tüm oyunlar için adresi yazın.</p>
             <form action="/proxy" method="get">
                 <input type="text" name="url" placeholder="https://tr.y8.com" required>
                 <button type="submit">Bağlan</button>
@@ -126,23 +128,33 @@ def proxy():
 
     req_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': 'https://tr.y8.com/'
+        'Referer': target_url
     }
     
     try:
         req = urllib.request.Request(target_url, headers=req_headers)
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
             body = resp.read()
             status_code = resp.status
             resp_headers = dict(resp.headers.items())
             
-            content_type = resp_headers.get('Content-Type', '')
+            content_type = resp_headers.get('Content-Type', '').lower()
 
-            excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'content-security-policy', 'connection']
+            # Güvenlik ve çakışma yaratan başlıkları temizle
+            excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'content-security-policy', 'connection', 'x-frame-options']
             headers_list = [(name, value) for name, value in resp_headers.items() if name.lower() not in excluded_headers]
+            
+            # Tarayıcı CORS engellerini tamamen kaldıran esnek izin başlıkları ekle (Oyun assetleri için şart)
+            headers_list.append(('Access-Control-Allow-Origin', '*'))
+            headers_list.append(('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE'))
+            headers_list.append(('Access-Control-Allow-Headers', '*'))
 
+            # Sadece HTML dosyaları için URL rewriting ve script enjeksiyonu yap
             if 'text/html' in content_type:
-                html = body.decode('utf-8', errors='ignore')
+                try:
+                    html = body.decode('utf-8', errors='ignore')
+                except:
+                    html = body.decode('latin1', errors='ignore')
                 
                 def rewrite_url(match):
                     attr = match.group(1)
@@ -152,11 +164,14 @@ def proxy():
                     if original_link.startswith(('javascript:', 'mailto:', '#', 'data:', 'tel:')):
                         return f'{attr}={quote}{original_link}{quote}'
                     
+                    if original_link.startswith('//'):
+                        original_link = 'https:' + original_link
+                    
                     full_url = urljoin(target_url, original_link)
                     proxied_url = f'/proxy?url={full_url}'
                     return f'{attr}={quote}{proxied_url}{quote}'
 
-                pattern = re.compile(r'(href|src|action|srcset)=(["\'])(.*?)\2', re.IGNORECASE)
+                pattern = re.compile(r'(href|src|action|srcset|data-src)=(["\'])(.*?)\2', re.IGNORECASE)
                 modified_html = pattern.sub(rewrite_url, html)
                 
                 if '<head>' in modified_html.lower():
@@ -168,6 +183,7 @@ def proxy():
 
                 return Response(modified_html, status_code, headers_list)
             
+            # .wasm, .data, resim, ses ve diğer ikili oyun dosyaları doğrudan hatasız döner
             return Response(body, status_code, headers_list)
             
     except Exception as e:
